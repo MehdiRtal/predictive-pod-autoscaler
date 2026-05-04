@@ -1,0 +1,13 @@
+apiVersion: v1
+entries:
+  ppa:
+  - apiVersion: v2
+    appVersion: 1.0.0
+    created: "2026-05-04T13:55:29.13816054Z"
+    digest: 07064076ba5a7833f051dc62d033bf9341656886f95cb42a6c8e5a77333c5a04
+    name: ppa
+    type: application
+    urls:
+    - https://github.com/Cloudstack0/predictive-pod-autoscaler/releases/download/ppa-0.1.1/ppa-0.1.1.tgz
+    version: 0.1.1
+generated: "2026-05-04T13:55:29.138165479Z"
