@@ -11,6 +11,27 @@ entries:
     - https://github.com/Cloudstack0/predictive-pod-autoscaler/releases/download/ppa-0.1.1/ppa-0.1.1.tgz
     version: 0.1.1
   predictive-pod-autoscaler:
+  - apiVersion: v2
+    appVersion: 1.0.0
+    created: "2026-05-07T09:58:59.24783336Z"
+    dependencies:
+    - condition: keda.enabled
+      name: keda
+      repository: https://kedacore.github.io/charts
+      version: 2.19.0
+    - condition: argo-workflows.enabled
+      name: argo-workflows
+      repository: https://argoproj.github.io/argo-helm
+      version: 1.0.13
+    - condition: seaweedfs.enabled
+      name: seaweedfs
+      repository: https://seaweedfs.github.io/seaweedfs/helm
+      version: 3.52.0
+    digest: b24c4363e63c08dc23c60ef51f26f074ada9b6a8744b9661f384b4be5fbbe9f4
+    name: predictive-pod-autoscaler
+    urls:
+    - https://github.com/Cloudstack0/predictive-pod-autoscaler/releases/download/predictive-pod-autoscaler-0.1.7/predictive-pod-autoscaler-0.1.7.tgz
+    version: 0.1.7
   - apiVersion: v3
     appVersion: 1.0.0
     created: "2026-05-06T08:50:36.198712329Z"
@@ -117,4 +138,4 @@ entries:
     urls:
     - https://github.com/Cloudstack0/predictive-pod-autoscaler/releases/download/predictive-pod-autoscaler-0.1.1/predictive-pod-autoscaler-0.1.1.tgz
     version: 0.1.1
-generated: "2026-05-06T08:50:36.198725342Z"
+generated: "2026-05-07T09:58:59.248116738Z"
