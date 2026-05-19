@@ -4,6 +4,7 @@ site_url: https://mehdirtal.github.io/predictive-pod-autoscaler/
 repo_url: https://github.com/MehdiRtal/predictive-pod-autoscaler
 repo_name: MehdiRtal/predictive-pod-autoscaler
 docs_dir: src
+edit_uri: edit/master/docs/src/
 
 theme:
   name: material
@@ -26,17 +27,21 @@ theme:
         icon: material/brightness-4
         name: Switch to light mode
   features:
+    - navigation.top
     - navigation.instant
     - navigation.instant.prefetch
+    - navigation.expand
     - navigation.footer
     - search.suggest
     - content.code.copy
+    - content.action.edit
 
 plugins:
   - search
   - optimize
   - include-markdown
   - mermaid2
+  - git-revision-date-localized
   - minify:
       minify_html: true
 
