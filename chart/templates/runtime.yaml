@@ -1,0 +1,41 @@
+apiVersion: serving.kserve.io/v1alpha1
+kind: ClusterServingRuntime
+metadata:
+  annotations:
+    serving.kserve.io/server-type: prophet
+  name: {{ include "ppa.fullname" . }}-prophet
+  labels:
+    {{- include "ppa.labels" . | nindent 4 }}
+spec:
+  containers:
+    - env:
+        - name: MLSERVER_MODEL_NAME
+          value: "{{ `{{.Name}}` }}"
+        - name: MLSERVER_MODEL_IMPLEMENTATION
+          value: "src.runtime.ProphetRuntime"
+        - name: MLSERVER_HTTP_PORT
+          value: "8080"
+        - name: MLSERVER_GRPC_PORT
+          value: "9000"
+        - name: MLSERVER_MODEL_URI
+          value: /mnt/models
+      image: "{{ .Values.runtime.image.repository }}:{{ .Values.runtime.image.tag | default .Chart.AppVersion }}"
+      imagePullPolicy: {{ .Values.runtime.image.pullPolicy }}
+      name: kserve-container
+      resources:
+        {{- toYaml .Values.runtime.resources | nindent 8 }}
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop:
+            - ALL
+        privileged: false
+        runAsNonRoot: true
+  disabled: false
+  protocolVersions:
+    - v2
+  supportedModelFormats:
+    - autoSelect: true
+      name: prophet
+      priority: 1
+      version: "1"

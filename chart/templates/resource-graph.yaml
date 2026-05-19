@@ -1,0 +1,210 @@
+apiVersion: kro.run/v1alpha1
+kind: ResourceGraphDefinition
+metadata:
+  name: {{ include "ppa.fullname" . }}-model
+  labels:
+    {{- include "ppa.labels" . | nindent 4 }}
+spec:
+  schema:
+    apiVersion: v1alpha1
+    kind: Model
+    group: ppa.io
+    spec:
+      prometheusUrl: "string | required=true"
+      queryType: "string | required=true"
+
+      workload:
+        type: string | required=true
+        name: string | required=true
+    status:
+      url: ${inferenceService.status.url}
+
+  resources:
+    - id: workflowServiceAccount
+      template:
+        apiVersion: v1
+        kind: ServiceAccount
+        metadata:
+          name: {{ include "ppa.fullname" . }}-pipeline
+
+    - id: workflowClusterRole
+      template:
+        apiVersion: rbac.authorization.k8s.io/v1
+        kind: ClusterRole
+        metadata:
+          name: {{ include "ppa.fullname" . }}-pipeline
+        rules:
+          - apiGroups:
+              - argoproj.io
+            resources:
+              - workflows
+              - workflowtaskresults
+              - cronworkflows
+            verbs:
+              - "*"
+          - apiGroups:
+              - "serving.kserve.io"
+            resources:
+              - inferenceservices
+            verbs:
+              - "*"
+          - apiGroups:
+              - "apps"
+            resources:
+              - deployments
+              - statefulsets
+              - replicasets
+              - daemonsets
+            verbs:
+              - get
+              - list
+              - watch
+          - apiGroups:
+              - ""
+            resources:
+              - pods
+            verbs:
+              - get
+              - list
+              - watch
+
+    - id: workflowClusterRoleBinding
+      template:
+        apiVersion: rbac.authorization.k8s.io/v1
+        kind: ClusterRoleBinding
+        metadata:
+          name: {{ include "ppa.fullname" . }}-pipeline
+        roleRef:
+          apiGroup: rbac.authorization.k8s.io
+          kind: ClusterRole
+          name: {{ include "ppa.fullname" . }}-pipeline
+        subjects:
+          - kind: ServiceAccount
+            name: {{ include "ppa.fullname" . }}-pipeline
+            namespace: ${schema.metadata.namespace}
+
+    - id: workflowS3Creds
+      template:
+        apiVersion: v1
+        kind: Secret
+        type: Opaque
+        metadata:
+          name: {{ include "ppa.fullname" . }}-s3-creds
+        stringData:
+          {{- if .Values.s3.create }}
+          accessKey: {{ .Values.seaweedfs.s3.credentials.admin.accessKey | quote }}
+          secretKey: {{ .Values.seaweedfs.s3.credentials.admin.secretKey | quote }}
+          {{- else }}
+          accessKey: {{ .Values.s3.externalConfig.accessKey | quote }}
+          secretKey: {{ .Values.s3.externalConfig.secretKey | quote }}
+          {{- end }}
+
+    - id: workflowArtifactRepository
+      template:
+        apiVersion: v1
+        kind: ConfigMap
+        metadata:
+          name: {{ include "ppa.fullname" . }}-artifact-repository
+          annotations:
+            workflows.argoproj.io/default-artifact-repository: default
+        data:
+          default: |
+            s3:
+              {{- if .Values.s3.create }}
+              insecure: true
+              endpoint: seaweedfs-s3.{{ .Release.Namespace }}:8333
+              bucket: {{ .Values.seaweedfs.s3.createBuckets | first }}
+              {{- else }}
+              insecure: {{ .Values.s3.externalConfig.insecure }}
+              endpoint: {{ .Values.s3.externalConfig.endpoint | quote }}
+              bucket: {{ .Values.s3.externalConfig.bucket | quote }}
+              {{- end }}
+              accessKeySecret:
+                name: {{ include "ppa.fullname" . }}-s3-creds
+                key: accessKey
+              secretKeySecret:
+                name: {{ include "ppa.fullname" . }}-s3-creds
+                key: secretKey
+
+    - id: initWorkflow
+      template:
+        apiVersion: argoproj.io/v1alpha1
+        kind: Workflow
+        metadata:
+          name: ${schema.metadata.name}-init
+        spec:
+          arguments:
+            parameters:
+              - name: prometheus_url
+                value: ${schema.spec.prometheusUrl}
+              - name: query_type
+                value: ${schema.spec.queryType}
+              - name: model_name
+                value: ${schema.metadata.name}
+              - name: workload_type
+                value: ${schema.spec.workload.type}
+              - name: workload_name
+                value: ${schema.spec.workload.name}
+          workflowTemplateRef:
+            name: {{ include "ppa.fullname" . }}-pipeline
+            clusterScope: true
+
+    - id: cronWorkflow
+      template:
+        apiVersion: argoproj.io/v1alpha1
+        kind: CronWorkflow
+        metadata:
+          name: ${schema.metadata.name}
+        spec:
+          schedules:
+            - "0 * * * *"
+          workflowSpec:
+            arguments:
+              parameters:
+                - name: prometheus_url
+                  value: ${schema.spec.prometheusUrl}
+                - name: query_type
+                  value: ${schema.spec.queryType}
+                - name: model_name
+                  value: ${schema.metadata.name}
+                - name: workload_type
+                  value: ${schema.spec.workload.type}
+                - name: workload_name
+                  value: ${schema.spec.workload.name}
+            workflowTemplateRef:
+              name: {{ include "ppa.fullname" . }}-pipeline
+              clusterScope: true
+
+    - id: inferenceService
+      externalRef:
+        apiVersion: serving.kserve.io/v1beta1
+        kind: InferenceService
+        metadata:
+          name: ${schema.metadata.name}
+      readyWhen:
+        - ${inferenceService.status.conditions.exists(c, c.type == "Ready" &&
+          c.status == "True")}
+
+    - id: inferenceServiceStorageConfig
+      template:
+        apiVersion: v1
+        kind: Secret
+        metadata:
+          name: {{ include "ppa.fullname" . }}-storage-config
+        type: Opaque
+        stringData:
+          default: |
+            {
+              "type": "s3",
+              {{- if .Values.s3.create }}
+              "access_key_id": {{ .Values.seaweedfs.s3.credentials.admin.accessKey | quote }},
+              "secret_access_key": {{ .Values.seaweedfs.s3.credentials.admin.secretKey | quote }},
+              "endpoint_url": "http://seaweedfs-s3.{{ .Release.Namespace }}:8333",
+              "bucket": {{ .Values.seaweedfs.s3.createBuckets | first | quote }}
+              {{- else }}
+              "access_key_id": {{ .Values.s3.externalConfig.accessKey | quote }},
+              "secret_access_key": {{ .Values.s3.externalConfig.secretKey | quote }},
+              "endpoint_url": "http://{{ .Values.s3.externalConfig.endpoint }}",
+              "bucket": {{ .Values.s3.externalConfig.bucket | quote }}
+              {{- end }}
+            }

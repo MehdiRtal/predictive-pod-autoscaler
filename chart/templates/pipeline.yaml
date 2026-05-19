@@ -1,0 +1,127 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ClusterWorkflowTemplate
+metadata:
+  name: '{{ include "ppa.fullname" . }}-pipeline'
+spec:
+  entrypoint: main
+  serviceAccountName: '{{ include "ppa.fullname" . }}-pipeline'
+  templates:
+  - name: fetch-data
+    inputs:
+      parameters:
+      - name: prometheus_url
+      - name: workload_type
+      - name: workload_name
+      - name: workload_namespace
+      - name: query_type
+    outputs:
+      artifacts:
+      - name: data
+        path: /tmp/data.csv
+        archive:
+          none: {}
+    script:
+      image: '{{ .Values.pipeline.image.repository }}:{{ .Values.pipeline.image.tag
+        | default .Chart.AppVersion }}'
+      source: '{{ `{{inputs.parameters}}` }}'
+      args:
+      - -m
+      - hera.workflows.runner
+      - -e
+      - src.pipeline:fetch_data
+      command:
+      - python
+  - name: train-model
+    inputs:
+      artifacts:
+      - name: data
+        path: /tmp/data.csv
+    outputs:
+      artifacts:
+      - name: model
+        path: /tmp/model.json
+        archive:
+          none: {}
+        s3:
+          key: models/{{ `{{workflow.name}}` }}/model.json
+    script:
+      image: '{{ .Values.pipeline.image.repository }}:{{ .Values.pipeline.image.tag
+        | default .Chart.AppVersion }}'
+      source: '{{ `{{inputs.parameters}}` }}'
+      args:
+      - -m
+      - hera.workflows.runner
+      - -e
+      - src.pipeline:train_model
+      command:
+      - python
+  - name: deploy-model
+    inputs:
+      parameters:
+      - name: model_s3_path
+      - name: model_name
+    resource:
+      action: apply
+      manifest: |
+        apiVersion: serving.kserve.io/v1beta1
+        kind: InferenceService
+        metadata:
+          annotations:
+            serving.kserve.io/secretName: '{{ include "ppa.fullname" . }}-storage-config'
+          name: '{{ `{{inputs.parameters.model_name}}` }}'
+          namespace: '{{ `{{workflow.namespace}}` }}'
+        spec:
+          predictor:
+            maxReplicas: 1
+            minReplicas: 0
+            model:
+              modelFormat:
+                name: prophet
+              ports:
+              - containerPort: 9000
+                name: h2c
+                protocol: TCP
+              protocolVersion: v2
+              storage:
+                key: default
+                path: '{{ `{{inputs.parameters.model_s3_path}}` }}'
+      setOwnerReference: true
+  - name: main
+    steps:
+    - - name: fetch-data
+        template: fetch-data
+        arguments:
+          parameters:
+          - name: prometheus_url
+            value: '{{ `{{workflow.parameters.prometheus_url}}` }}'
+          - name: workload_type
+            value: '{{ `{{workflow.parameters.workload_type}}` }}'
+          - name: workload_name
+            value: '{{ `{{workflow.parameters.workload_name}}` }}'
+          - name: workload_namespace
+            value: '{{ `{{workflow.namespace}}` }}'
+          - name: query_type
+            value: '{{ `{{workflow.parameters.query_type}}` }}'
+    - - name: train-model
+        template: train-model
+        arguments:
+          artifacts:
+          - name: data
+            from: '{{ `{{steps.fetch-data.outputs.artifacts.data}}` }}'
+    - - name: deploy-model
+        template: deploy-model
+        arguments:
+          parameters:
+          - name: model_s3_path
+            value: models/{{ `{{workflow.name}}` }}/model.json
+          - name: model_name
+            value: '{{ `{{workflow.parameters.model_name}}` }}'
+  arguments:
+    parameters:
+    - name: prometheus_url
+    - name: workload_type
+    - name: workload_name
+    - name: query_type
+    - name: model_name
+  artifactRepositoryRef:
+    configMap: '{{ include "ppa.fullname" . }}-artifact-repository'

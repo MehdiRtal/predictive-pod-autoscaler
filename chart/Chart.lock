@@ -1,0 +1,21 @@
+dependencies:
+- name: keda
+  repository: https://kedacore.github.io/charts
+  version: 2.19.0
+- name: argo-workflows
+  repository: oci://ghcr.io/argoproj/argo-helm
+  version: 1.0.14
+- name: seaweedfs
+  repository: https://seaweedfs.github.io/seaweedfs/helm
+  version: "3.52"
+- name: kro
+  repository: oci://registry.k8s.io/kro/charts
+  version: 0.9.1
+- name: kserve-crd
+  repository: oci://ghcr.io/kserve/charts
+  version: v0.18.0-rc1
+- name: kserve-resources
+  repository: oci://ghcr.io/kserve/charts
+  version: v0.18.0-rc1
+digest: sha256:d2b0663323f8ac4542033af675bab0685bb90ae96fc48255e49408c0d4d357fd
+generated: "2026-05-17T17:00:48.085123139+01:00"

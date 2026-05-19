@@ -1,0 +1,58 @@
+{{- if .Values.scaler.enabled -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "ppa.fullname" . }}-scaler
+  labels:
+    {{- include "ppa.labels" . | nindent 4 }}
+    app: ppa-scaler
+spec:
+  replicas: {{ .Values.scaler.replicas }}
+  selector:
+    matchLabels:
+      {{- include "ppa.selectorLabels" . | nindent 6 }}
+      app: ppa-scaler
+  template:
+    metadata:
+      labels:
+        {{- include "ppa.selectorLabels" . | nindent 8 }}
+        app: ppa-scaler
+    spec:
+      serviceAccountName: {{ include "ppa.fullname" . }}-scaler
+      containers:
+        - name: main
+          image: "{{ .Values.scaler.image.repository }}:{{ .Values.scaler.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.scaler.image.pullPolicy }}
+          ports:
+            - name: grpc
+              containerPort: 9090
+          resources:
+            limits:
+              cpu: {{ .Values.scaler.resources.limits.cpu | quote }}
+              memory: {{ .Values.scaler.resources.limits.memory | quote }}
+            requests:
+              cpu: {{ .Values.scaler.resources.requests.cpu | quote }}
+              memory: {{ .Values.scaler.resources.requests.memory | quote }}
+          {{- with .Values.scaler.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "ppa.fullname" . }}-scaler
+  labels:
+    {{- include "ppa.labels" . | nindent 4 }}
+    app: ppa-scaler
+spec:
+  type: {{ .Values.scaler.service.type }}
+  selector:
+    {{- include "ppa.selectorLabels" . | nindent 4 }}
+    app: ppa-scaler
+  ports:
+    - name: grpc
+      protocol: TCP
+      port: {{ .Values.scaler.service.port }}
+      targetPort: 9090
+{{- end }}

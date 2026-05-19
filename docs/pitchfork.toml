@@ -1,0 +1,8 @@
+[daemons.docs]
+run = "mise run serve-docs"
+port = 8000
+ready_port = 8000
+retry = true
+watch = ["src/**/*", "mkdocs.yml"]
+watch_mode = "auto"
+auto = ["start", "stop"]

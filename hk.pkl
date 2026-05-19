@@ -1,0 +1,24 @@
+amends "package://github.com/jdx/hk/releases/download/v1.45.0/hk@1.45.0#/Config.pkl"
+import "package://github.com/jdx/hk/releases/download/v1.45.0/hk@1.45.0#/Builtins.pkl"
+
+hooks {
+  ["pre-commit"] {
+    fix = true
+    steps {
+      ["helm-docs"] {
+        glob = List("chart/values.yaml", "chart/Chart.yaml", "chart/README.md.gotmpl")
+        fix = "mise gen-helm-docs"
+      }
+      ["helm-pipeline"] {
+        glob = List("app/pipeline/scripts/generate_pipeline.py")
+        fix = "mise gen-helm-pipeline"
+      }
+      ["runtime-requirements"] {
+        glob = List("app/runtime/pyproject.toml")
+        fix = "mise gen-runtime-requirements"
+      }
+      ["newlines"] = Builtins.newlines
+      ["trailing-whitespace"] = Builtins.trailing_whitespace
+    }
+  }
+}

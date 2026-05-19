@@ -1,0 +1,61 @@
+site_name: Predictive Pod Autoscaler (PPA)
+site_description: AI-driven horizontal pod autoscaling for Kubernetes using KEDA, KServe, and Prophet.
+site_url: https://mehdirtal.github.io/predictive-pod-autoscaler/
+repo_url: https://github.com/MehdiRtal/predictive-pod-autoscaler
+repo_name: MehdiRtal/predictive-pod-autoscaler
+docs_dir: src
+
+theme:
+  name: material
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.instant
+    - navigation.instant.prefetch
+    - navigation.footer
+    - search.suggest
+    - content.code.copy
+
+plugins:
+  - search
+  - optimize
+  - include-markdown
+  - mermaid2
+  - minify:
+      minify_html: true
+
+nav:
+  - Home: index.md
+  - Getting Started:
+      - Overview: getting-started.md
+      - Installation: installation.md
+      - Usage Guide: usage.md
+  - Architecture: architecture.md
+  - Reference: reference.md
+  - Release Notes: release-notes.md
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:mermaid2.fence_mermaid_custom
+  - pymdownx.tabbed:
+      alternate_style: true
+  - attr_list
+  - md_in_html

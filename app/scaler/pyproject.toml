@@ -1,0 +1,12 @@
+[project]
+name = "scaler"
+version = "0.1.0"
+requires-python = ">=3.14"
+dependencies = [
+    "grpcio>=1.80.0",
+    "kserve>=0.17.0",
+    "kubernetes-asyncio>=35.0.1",
+]
+
+[dependency-groups]
+dev = ["grpcio-tools>=1.80.0"]

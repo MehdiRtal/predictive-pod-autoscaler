@@ -1,0 +1,35 @@
+apiVersion: v2
+name: ppa
+version: 1.1.0
+appVersion: "1.1.0"
+
+dependencies:
+  - name: keda
+    version: "2.19.0"
+    repository: "https://kedacore.github.io/charts"
+    condition: keda.enabled
+
+  - name: seaweedfs
+    version: "3.52.0"
+    repository: "https://seaweedfs.github.io/seaweedfs/helm"
+    condition: s3.create
+
+  - name: argo-workflows
+    version: "1.0.14"
+    repository: "oci://ghcr.io/argoproj/argo-helm"
+    condition: argo-workflows.enabled
+
+  - name: kro
+    version: "0.9.1"
+    repository: oci://registry.k8s.io/kro/charts
+    condition: kro.enabled
+
+  - name: kserve-crd
+    version: "v0.18.0-rc1"
+    repository: oci://ghcr.io/kserve/charts
+    condition: kserve.enabled
+
+  - name: kserve-resources
+    version: "v0.18.0-rc1"
+    repository: oci://ghcr.io/kserve/charts
+    condition: kserve.enabled
