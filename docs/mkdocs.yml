@@ -8,6 +8,8 @@ docs_dir: src
 theme:
   name: material
   custom_dir: overrides
+  icon:
+    repo: fontawesome/brands/github
   palette:
     - media: "(prefers-color-scheme: light)"
       scheme: default
