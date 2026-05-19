@@ -7,6 +7,7 @@ docs_dir: src
 
 theme:
   name: material
+  custom_dir: overrides
   palette:
     - media: "(prefers-color-scheme: light)"
       scheme: default
@@ -36,6 +37,11 @@ plugins:
   - mermaid2
   - minify:
       minify_html: true
+
+extra:
+  version:
+    provider: mike
+    alias: true
 
 nav:
   - Home: index.md

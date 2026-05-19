@@ -183,3 +183,36 @@ jobs:
             ${{ env.REGISTRY }}/${{ env.REPO_LOWER }}/${{ env.IMAGE_NAME }}:${{ needs.release.outputs.version }}
           cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.REPO_LOWER }}/${{ env.IMAGE_NAME }}:buildcache
           cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.REPO_LOWER }}/${{ env.IMAGE_NAME }}:buildcache,mode=max
+
+  docs:
+    runs-on: ubuntu-latest
+    needs: release
+    if: needs.release.outputs.released == 'true'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        working-directory: docs
+        run: uv sync
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pngquant
+
+      - name: Deploy documentation
+        env:
+          GIT_COMMITTER_NAME: github-actions[bot]
+          GIT_COMMITTER_EMAIL: github-actions[bot]@users.noreply.github.com
+        working-directory: docs
+        run: |
+          uv run mike set-default latest
+          uv run mike deploy -p -u ${{ needs.release.outputs.version }} latest
