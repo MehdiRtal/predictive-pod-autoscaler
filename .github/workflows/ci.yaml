@@ -214,5 +214,5 @@ jobs:
           GIT_COMMITTER_EMAIL: github-actions[bot]@users.noreply.github.com
         working-directory: docs
         run: |
-          uv run mike set-default latest
           uv run mike deploy -p -u ${{ needs.release.outputs.version }} latest
+          uv run mike set-default latest -p
