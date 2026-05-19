@@ -1,3 +1,10 @@
+# [1.1.0](https://github.com/MehdiRtal/predictive-pod-autoscaler/compare/v1.0.0...v1.1.0) (2026-05-19)
+
+
+### Features
+
+* test ([41fd71f](https://github.com/MehdiRtal/predictive-pod-autoscaler/commit/41fd71f5a1b3cbe3109dae75575a0cb445eaf126))
+
 # 1.0.0 (2026-05-19)
 
 
