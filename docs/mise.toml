@@ -1,0 +1,2 @@
+[tasks.serve-docs]
+run = "uv run mkdocs serve"

@@ -1,0 +1,201 @@
+name: CI
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    outputs:
+      scaler_created: ${{ steps.release.outputs['app/scaler--release_created'] }}
+      scaler_version: ${{ steps.release.outputs['app/scaler--version'] }}
+      runtime_created: ${{ steps.release.outputs['app/runtime--release_created'] }}
+      runtime_version: ${{ steps.release.outputs['app/runtime--version'] }}
+      pipeline_created: ${{ steps.release.outputs['app/pipeline--release_created'] }}
+      pipeline_version: ${{ steps.release.outputs['app/pipeline--version'] }}
+      chart_created: ${{ steps.release.outputs['chart--release_created'] }}
+      chart_version: ${{ steps.release.outputs['chart--version'] }}
+    steps:
+      - name: Release
+        id: release
+        uses: googleapis/release-please-action@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  scaler:
+    needs: release
+    if: needs.release.outputs.scaler_created == 'true'
+    runs-on: ubuntu-latest
+    env:
+      IMAGE_NAME: scaler
+      DOCKERFILE_PATH: app/scaler/
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - run: echo "REPO_LOWER=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Log in to ghcr.io
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v7
+        with:
+          context: ${{ env.DOCKERFILE_PATH }}
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.REPO_LOWER }}/${{ env.IMAGE_NAME }}:latest
+            ${{ env.REGISTRY }}/${{ env.REPO_LOWER }}/${{ env.IMAGE_NAME }}:${{ needs.release.outputs.scaler_version }}
+          cache-from: "type=registry,ref=${{ env.REGISTRY }}/${{ env.REPO_LOWER }}/${{ env.IMAGE_NAME }}:buildcache"
+          cache-to: "type=registry,ref=${{ env.REGISTRY }}/${{ env.REPO_LOWER }}/${{ env.IMAGE_NAME }}:buildcache,mode=max"
+
+  runtime:
+    needs: release
+    if: needs.release.outputs.runtime_created == 'true'
+    runs-on: ubuntu-latest
+    env:
+      IMAGE_NAME: runtime
+      DOCKERFILE_PATH: app/runtime/
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - run: echo "REPO_LOWER=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Log in to ghcr.io
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v7
+        with:
+          context: ${{ env.DOCKERFILE_PATH }}
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.REPO_LOWER }}/${{ env.IMAGE_NAME }}:latest
+            ${{ env.REGISTRY }}/${{ env.REPO_LOWER }}/${{ env.IMAGE_NAME }}:${{ needs.release.outputs.runtime_version }}
+          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.REPO_LOWER }}/${{ env.IMAGE_NAME }}:buildcache
+          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.REPO_LOWER }}/${{ env.IMAGE_NAME }}:buildcache,mode=max
+
+  pipeline:
+    needs: release
+    if: needs.release.outputs.pipeline_created == 'true'
+    runs-on: ubuntu-latest
+    env:
+      IMAGE_NAME: pipeline
+      DOCKERFILE_PATH: app/pipeline/
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - run: echo "REPO_LOWER=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Log in to ghcr.io
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v7
+        with:
+          context: ${{ env.DOCKERFILE_PATH }}
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.REPO_LOWER }}/${{ env.IMAGE_NAME }}:latest
+            ${{ env.REGISTRY }}/${{ env.REPO_LOWER }}/${{ env.IMAGE_NAME }}:${{ needs.release.outputs.pipeline_version }}
+          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.REPO_LOWER }}/${{ env.IMAGE_NAME }}:buildcache
+          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.REPO_LOWER }}/${{ env.IMAGE_NAME }}:buildcache,mode=max
+
+  chart:
+    needs: release
+    if: needs.release.outputs.chart_created == 'true'
+    runs-on: ubuntu-latest
+    env:
+      CHART_PATH: chart
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - run: echo "REPO_LOWER=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
+
+      - name: Log in to ghcr.io
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install Helm dependencies
+        working-directory: ${{ env.CHART_PATH }}
+        run: |
+          helm repo add keda https://kedacore.github.io/charts
+          helm repo add seaweedfs https://seaweedfs.github.io/seaweedfs/helm
+          helm dependency update
+
+      - name: Build and Push Helm chart
+        working-directory: ${{ env.CHART_PATH }}
+        run: |
+          helm package . --version ${{ needs.release.outputs.chart_version }} --app-version ${{ needs.release.outputs.chart_version }}
+          helm push *-${{ needs.release.outputs.chart_version }}.tgz oci://${{ env.REGISTRY }}/${{ env.REPO_LOWER }}
+
+  docs:
+    runs-on: ubuntu-latest
+    needs: release
+    if: needs.release.outputs.chart_created == 'true'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        working-directory: docs
+        run: uv sync
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pngquant
+
+      - name: Deploy documentation
+        env:
+          GIT_COMMITTER_NAME: github-actions[bot]
+          GIT_COMMITTER_EMAIL: github-actions[bot]@users.noreply.github.com
+        working-directory: docs
+        run: |
+          uv run mike deploy -p -u ${{ needs.release.outputs.chart_version }} latest
+          uv run mike set-default latest -p

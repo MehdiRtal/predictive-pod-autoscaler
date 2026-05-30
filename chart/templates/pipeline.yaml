@@ -1,0 +1,149 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ClusterWorkflowTemplate
+metadata:
+  name: '{{ include "ppa.fullname" . }}-pipeline'
+spec:
+  entrypoint: main
+  serviceAccountName: '{{ include "ppa.fullname" . }}-pipeline'
+  templates:
+  - name: fetch-data
+    inputs:
+      parameters:
+      - name: prometheus_url
+      - name: target_ref_api_version
+      - name: target_ref_kind
+      - name: target_ref_name
+      - name: namespace
+      - name: query_type
+      - name: lookBackInterval
+      - name: windowInterval
+      - name: custom_query
+    outputs:
+      artifacts:
+      - name: data
+        path: /tmp/hera-outputs/artifacts/data
+    script:
+      image: '{{ .Values.pipeline.image.repository }}:{{ .Values.pipeline.image.tag
+        }}'
+      source: '{{ `{{inputs.parameters}}` }}'
+      args:
+      - -m
+      - hera.workflows.runner
+      - -e
+      - src.pipeline:fetch_data
+      command:
+      - python
+      env:
+      - name: hera__outputs_directory
+        value: /tmp/hera-outputs
+  - name: train-model
+    inputs:
+      artifacts:
+      - name: data
+        path: /tmp/hera-inputs/artifacts/data
+    outputs:
+      artifacts:
+      - name: model
+        path: /tmp/hera-outputs/artifacts/model
+        archive:
+          none: {}
+        s3:
+          key: models/{{ `{{workflow.name}}` }}-{{ `{{workflow.uid}}` }}/model.json
+    script:
+      image: '{{ .Values.pipeline.image.repository }}:{{ .Values.pipeline.image.tag
+        }}'
+      source: '{{ `{{inputs.parameters}}` }}'
+      args:
+      - -m
+      - hera.workflows.runner
+      - -e
+      - src.pipeline:train_model
+      command:
+      - python
+      env:
+      - name: hera__outputs_directory
+        value: /tmp/hera-outputs
+  - name: deploy-model
+    inputs:
+      parameters:
+      - name: model_s3_path
+      - name: model_name
+    resource:
+      action: apply
+      manifest: |
+        apiVersion: serving.kserve.io/v1beta1
+        kind: InferenceService
+        metadata:
+          annotations:
+            serving.kserve.io/secretName: '{{ include "ppa.fullname" . }}-storage-config'
+          name: '{{ `{{inputs.parameters.model_name}}` }}'
+          namespace: '{{ `{{workflow.namespace}}` }}'
+        spec:
+          predictor:
+            maxReplicas: 1
+            minReplicas: 0
+            model:
+              modelFormat:
+                name: prophet
+              ports:
+              - containerPort: 9000
+                name: h2c
+                protocol: TCP
+              protocolVersion: v2
+              storage:
+                key: default
+                path: '{{ `{{inputs.parameters.model_s3_path}}` }}'
+      setOwnerReference: true
+  - name: main
+    steps:
+    - - name: fetch-data
+        template: fetch-data
+        arguments:
+          parameters:
+          - name: prometheus_url
+            value: '{{ `{{workflow.parameters.prometheus_url}}` }}'
+          - name: target_ref_api_version
+            value: '{{ `{{workflow.parameters.target_ref_api_version}}` }}'
+          - name: target_ref_kind
+            value: '{{ `{{workflow.parameters.target_ref_kind}}` }}'
+          - name: target_ref_name
+            value: '{{ `{{workflow.parameters.target_ref_name}}` }}'
+          - name: namespace
+            value: '{{ `{{workflow.namespace}}` }}'
+          - name: query_type
+            value: '{{ `{{workflow.parameters.query_type}}` }}'
+          - name: lookBackInterval
+            value: '{{ `{{workflow.parameters.lookBackInterval}}` }}'
+          - name: windowInterval
+            value: '{{ `{{workflow.parameters.windowInterval}}` }}'
+          - name: custom_query
+            value: '{{ `{{workflow.parameters.custom_query}}` }}'
+    - - name: train-model
+        template: train-model
+        arguments:
+          artifacts:
+          - name: data
+            from: '{{ `{{steps.fetch-data.outputs.artifacts.data}}` }}'
+    - - name: deploy-model
+        template: deploy-model
+        arguments:
+          parameters:
+          - name: model_s3_path
+            value: models/{{ `{{workflow.name}}` }}-{{ `{{workflow.uid}}` }}/model.json
+          - name: model_name
+            value: '{{ `{{workflow.parameters.model_name}}` }}'
+  arguments:
+    parameters:
+    - name: prometheus_url
+    - name: target_ref_api_version
+    - name: target_ref_kind
+    - name: target_ref_name
+    - name: namespace
+    - name: query_type
+    - name: lookBackInterval
+    - name: windowInterval
+    - name: custom_query
+      default: ''
+    - name: model_name
+  artifactRepositoryRef:
+    configMap: '{{ include "ppa.fullname" . }}-artifact-repository'

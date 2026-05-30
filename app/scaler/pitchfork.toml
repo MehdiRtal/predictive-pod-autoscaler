@@ -1,0 +1,8 @@
+[daemons.scaler]
+run = "mise run serve-scaler"
+port = 9090
+ready_port = 9090
+retry = true
+watch = ["src/**/*", "uv.lock"]
+watch_mode = "auto"
+auto = ["start", "stop"]

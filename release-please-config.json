@@ -1,0 +1,27 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "packages": {
+    "app/scaler": {
+      "release-type": "python",
+      "package-name": "scaler"
+    },
+    "app/runtime": {
+      "release-type": "python",
+      "package-name": "runtime"
+    },
+    "app/pipeline": {
+      "release-type": "python",
+      "package-name": "pipeline"
+    },
+    "chart": {
+      "release-type": "helm",
+      "package-name": "chart"
+    },
+    "docs": {
+      "release-type": "python",
+      "package-name": "docs",
+      "skip-changelog": true,
+      "skip-github-release": true
+    }
+  }
+}
