@@ -18,24 +18,102 @@ jobs:
   release:
     runs-on: ubuntu-latest
     outputs:
-      scaler_created: ${{ steps.release.outputs['app/scaler--release_created'] }}
-      scaler_version: ${{ steps.release.outputs['app/scaler--version'] }}
-      runtime_created: ${{ steps.release.outputs['app/runtime--release_created'] }}
-      runtime_version: ${{ steps.release.outputs['app/runtime--version'] }}
-      pipeline_created: ${{ steps.release.outputs['app/pipeline--release_created'] }}
-      pipeline_version: ${{ steps.release.outputs['app/pipeline--version'] }}
-      chart_created: ${{ steps.release.outputs['chart--release_created'] }}
-      chart_version: ${{ steps.release.outputs['chart--version'] }}
+      releases: ${{ steps.release.outputs.releases }}
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Install convco
+        run: |
+          curl -L https://github.com/convco/convco/releases/latest/download/convco-x86_64-unknown-linux-gnu.tar.gz | tar -xz
+          sudo mv convco /usr/local/bin/
+
       - name: Release
         id: release
-        uses: googleapis/release-please-action@v5
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          echo "{}" > releases.json
+
+          bump_package() {
+              local name=$1
+              local path=$2
+              local prefix=$3
+              local config_file=$4
+              local version_key=$5
+
+              echo "Checking $name ($path)..."
+
+              local config_type
+              if [[ "$config_file" == *.toml ]]; then
+                  config_type="toml"
+              else
+                  config_type="yaml"
+              fi
+
+              local current_version
+              if [ "$config_type" == "toml" ]; then
+                  current_version=$(yq eval -p toml "$version_key" "$config_file")
+              elif [ "$config_type" == "yaml" ]; then
+                  current_version=$(yq eval "$version_key" "$config_file")
+              fi
+              current_version=$(echo "$current_version" | tr -d '"' | xargs)
+
+              local next_version
+              next_version=$(convco version --bump --paths "$path" --prefix "$prefix" 2>/dev/null || echo "$current_version")
+              next_version=${next_version#v}
+              next_version=$(echo "$next_version" | xargs)
+
+              local created=false
+              if [ "$next_version" != "$current_version" ]; then
+                  echo "Bumping $name: $current_version -> $next_version"
+                  if [ "$config_type" == "toml" ]; then
+                      yq -i -p toml -o toml "$version_key = \"$next_version\"" "$config_file"
+                  elif [ "$config_type" == "yaml" ]; then
+                      yq -i "$version_key = \"$next_version\"" "$config_file"
+                  fi
+                  git tag "$prefix$next_version"
+                  created=true
+              else
+                  echo "No changes for $name"
+              fi
+
+              jq --arg name "$name" --argjson created "$created" --arg version "$next_version" \
+                '.[$name] = {created: $created, version: $version}' releases.json > releases.json.tmp && mv releases.json.tmp releases.json
+
+              [ "$created" == "true" ] && return 0 || return 1
+          }
+
+          CHANGED=false
+          bump_package "scaler" "app/scaler" "scaler-v" "app/scaler/pyproject.toml" ".project.version" && CHANGED=true || true
+          bump_package "runtime" "app/runtime" "runtime-v" "app/runtime/pyproject.toml" ".project.version" && CHANGED=true || true
+          bump_package "pipeline" "app/pipeline" "pipeline-v" "app/pipeline/pyproject.toml" ".project.version" && CHANGED=true || true
+          bump_package "chart" "chart" "chart-v" "chart/Chart.yaml" ".version" && CHANGED=true || true
+          bump_package "docs" "docs" "docs-v" "docs/pyproject.toml" ".project.version" && CHANGED=true || true
+
+          if [ "$CHANGED" == "true" ]; then
+              bash scripts/sync_values.sh
+          fi
+
+          echo "releases=$(cat releases.json | jq -c .)" >> "$GITHUB_OUTPUT"
+
+      - name: Commit and push changes
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add .
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "chore(release): bump versions [skip ci]"
+            git push origin main --follow-tags
+          fi
 
   scaler:
     needs: release
-    if: needs.release.outputs.scaler_created == 'true'
+    if: fromJSON(needs.release.outputs.releases).scaler.created
     runs-on: ubuntu-latest
     env:
       IMAGE_NAME: scaler
@@ -63,13 +141,13 @@ jobs:
           push: true
           tags: |
             ${{ env.REGISTRY }}/${{ env.REPO_LOWER }}/${{ env.IMAGE_NAME }}:latest
-            ${{ env.REGISTRY }}/${{ env.REPO_LOWER }}/${{ env.IMAGE_NAME }}:${{ needs.release.outputs.scaler_version }}
+            ${{ env.REGISTRY }}/${{ env.REPO_LOWER }}/${{ env.IMAGE_NAME }}:${{ fromJSON(needs.release.outputs.releases).scaler.version }}
           cache-from: "type=registry,ref=${{ env.REGISTRY }}/${{ env.REPO_LOWER }}/${{ env.IMAGE_NAME }}:buildcache"
           cache-to: "type=registry,ref=${{ env.REGISTRY }}/${{ env.REPO_LOWER }}/${{ env.IMAGE_NAME }}:buildcache,mode=max"
 
   runtime:
     needs: release
-    if: needs.release.outputs.runtime_created == 'true'
+    if: fromJSON(needs.release.outputs.releases).runtime.created
     runs-on: ubuntu-latest
     env:
       IMAGE_NAME: runtime
@@ -97,13 +175,13 @@ jobs:
           push: true
           tags: |
             ${{ env.REGISTRY }}/${{ env.REPO_LOWER }}/${{ env.IMAGE_NAME }}:latest
-            ${{ env.REGISTRY }}/${{ env.REPO_LOWER }}/${{ env.IMAGE_NAME }}:${{ needs.release.outputs.runtime_version }}
+            ${{ env.REGISTRY }}/${{ env.REPO_LOWER }}/${{ env.IMAGE_NAME }}:${{ fromJSON(needs.release.outputs.releases).runtime.version }}
           cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.REPO_LOWER }}/${{ env.IMAGE_NAME }}:buildcache
           cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.REPO_LOWER }}/${{ env.IMAGE_NAME }}:buildcache,mode=max
 
   pipeline:
     needs: release
-    if: needs.release.outputs.pipeline_created == 'true'
+    if: fromJSON(needs.release.outputs.releases).pipeline.created
     runs-on: ubuntu-latest
     env:
       IMAGE_NAME: pipeline
@@ -131,13 +209,13 @@ jobs:
           push: true
           tags: |
             ${{ env.REGISTRY }}/${{ env.REPO_LOWER }}/${{ env.IMAGE_NAME }}:latest
-            ${{ env.REGISTRY }}/${{ env.REPO_LOWER }}/${{ env.IMAGE_NAME }}:${{ needs.release.outputs.pipeline_version }}
+            ${{ env.REGISTRY }}/${{ env.REPO_LOWER }}/${{ env.IMAGE_NAME }}:${{ fromJSON(needs.release.outputs.releases).pipeline.version }}
           cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.REPO_LOWER }}/${{ env.IMAGE_NAME }}:buildcache
           cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.REPO_LOWER }}/${{ env.IMAGE_NAME }}:buildcache,mode=max
 
   chart:
     needs: release
-    if: needs.release.outputs.chart_created == 'true'
+    if: fromJSON(needs.release.outputs.releases).chart.created
     runs-on: ubuntu-latest
     env:
       CHART_PATH: chart
@@ -164,13 +242,14 @@ jobs:
       - name: Build and Push Helm chart
         working-directory: ${{ env.CHART_PATH }}
         run: |
-          helm package . --version ${{ needs.release.outputs.chart_version }} --app-version ${{ needs.release.outputs.chart_version }}
-          helm push *-${{ needs.release.outputs.chart_version }}.tgz oci://${{ env.REGISTRY }}/${{ env.REPO_LOWER }}
+          local_version="${{ fromJSON(needs.release.outputs.releases).chart.version }}"
+          helm package . --version "$local_version" --app-version "$local_version"
+          helm push *-"$local_version".tgz oci://${{ env.REGISTRY }}/${{ env.REPO_LOWER }}
 
   docs:
     runs-on: ubuntu-latest
     needs: release
-    if: needs.release.outputs.chart_created == 'true'
+    if: fromJSON(needs.release.outputs.releases).docs.created
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -197,5 +276,5 @@ jobs:
           GIT_COMMITTER_EMAIL: github-actions[bot]@users.noreply.github.com
         working-directory: docs
         run: |
-          uv run mike deploy -p -u ${{ needs.release.outputs.chart_version }} latest
+          uv run mike deploy -p -u ${{ fromJSON(needs.release.outputs.releases).docs.version }} latest
           uv run mike set-default latest -p

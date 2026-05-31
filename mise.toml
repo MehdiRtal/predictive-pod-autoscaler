@@ -12,6 +12,10 @@ pkl = "latest"
 helm-docs = "latest"
 pitchfork = "latest"
 yq = "latest"
+rust = "latest"
+cmake = "latest"
+"cargo:convco" = "latest"
+cocogitto = "latest"
 
 [deps.skills]
 sources = ["skills-lock.json"]
