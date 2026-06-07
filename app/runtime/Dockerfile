@@ -1,4 +1,4 @@
-FROM continuumio/miniconda3:24.4.0-0 AS env-builder
+FROM continuumio/miniconda3:24.11.1-0 AS env-builder
 SHELL ["/bin/bash", "-c"]
 
 ARG MLSERVER_ENV_NAME="mlserver-custom-env" \
