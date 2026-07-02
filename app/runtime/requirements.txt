@@ -2,7 +2,7 @@
 #    uv --directory app/runtime pip compile pyproject.toml -o requirements.txt
 aiofiles==25.1.0
     # via mlserver
-aiohappyeyeballs==2.6.1
+aiohappyeyeballs==2.7.1
     # via aiohttp
 aiohttp==3.13.5
     # via tritonclient
