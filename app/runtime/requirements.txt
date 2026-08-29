@@ -26,7 +26,7 @@ brotli==1.2.0
     # via geventhttpclient
 certifi==2026.4.22
     # via geventhttpclient
-click==8.4.0
+click==8.5.0
     # via
     #   mlserver
     #   uvicorn
