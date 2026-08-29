@@ -199,7 +199,7 @@ python-rapidjson==1.23
     # via tritonclient
 pytz==2026.2
     # via pandas
-setuptools==82.0.1
+setuptools==83.0.0
     # via py-grpc-prometheus
 six==1.17.0
     # via python-dateutil
