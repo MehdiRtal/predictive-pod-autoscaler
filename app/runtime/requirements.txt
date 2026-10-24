@@ -160,7 +160,7 @@ prometheus-client==0.25.0
     # via
     #   py-grpc-prometheus
     #   starlette-exporter
-propcache==0.5.2
+propcache==0.5.4
     # via
     #   aiohttp
     #   yarl
