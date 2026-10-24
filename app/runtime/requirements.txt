@@ -154,7 +154,7 @@ pandas==2.3.3
     #   cmdstanpy
     #   mlserver
     #   prophet
-pillow==12.2.0
+pillow==12.3.0
     # via matplotlib
 prometheus-client==0.25.0
     # via
