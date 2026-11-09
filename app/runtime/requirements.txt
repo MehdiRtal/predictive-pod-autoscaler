@@ -22,7 +22,7 @@ async-timeout==5.0.1
     #   aiokafka
 attrs==26.1.0
     # via aiohttp
-brotli==1.2.0
+brotli==1.2.1
     # via geventhttpclient
 certifi==2026.4.22
     # via geventhttpclient
