@@ -193,7 +193,7 @@ python-dotenv==1.2.2
     # via
     #   mlserver
     #   pydantic-settings
-python-multipart==0.0.29
+python-multipart==0.0.31
     # via mlserver
 python-rapidjson==1.23
     # via tritonclient
